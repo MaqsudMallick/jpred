@@ -1,43 +1,43 @@
-# JPred - Job Hunting Time Tracker
+# 💼 JPred - Job Hunting Time Tracker
 
-A modern, beautiful Terminal UI (TUI) application for tracking time spent on job hunting activities with automated workflow integration.
+> A modern Terminal UI (TUI) application for tracking time spent on job hunting activities with automated workflow integration.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![Node](https://img.shields.io/badge/node-20+-green)
-![License](https://img.shields.io/badge/license-MIT-yellow)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/jpred/jpred)
+[![Node](https://img.shields.io/badge/node-20+-green)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
-## Features
+## 🎯 What is JPred?
 
-### Three Independent Timers
-- 💼 **Job Search** - Track time spent searching and applying for jobs
-  - Auto-opens: LinkedIn Jobs, Indeed, Glassdoor in Firefox
-- 📝 **Practice** - Track time spent practicing coding problems
-  - Auto-opens: LeetCode, HackerRank, CodeWars in Firefox
-- 📚 **Upskilling** - Track time spent learning new skills
-  - Auto-opens: VS Code (new window)
+JPred is a productivity tool designed specifically for job seekers. It helps you track time spent on three critical job hunting activities:
 
-### Smart Notifications
-- 🔔 **Goal Completion Alert** - Continuous beep sound when you reach your daily goal
-- 🎉 **Success Sound** - Special sound effect when goal is first achieved
-- ⏰ **Persistent Alert** - Keeps beeping until you stop the timer
+- **💼 Job Search** - Track applications, job board browsing, and networking
+- **📝 Practice** - Track coding practice and technical interview prep
+- **📚 Upskilling** - Track learning and skill development
 
-### Modern Interface
-- 🎨 Beautiful dark theme
-- 📊 Real-time progress bars with goal visualization
-- 📱 Responsive layout with three timer cards
-- ⌨️ Full keyboard navigation support
-- 🖱️ Mouse click support for timer controls
+Unlike generic time trackers, JPred understands your job hunting workflow. When you start a timer, it can automatically open the websites and tools you need—LinkedIn for job searching, LeetCode for practice, or VS Code for learning.
+
+## ✨ Features
+
+### Core Features
+- 🎯 **Three Independent Timers** - Track job search, practice, and upskilling separately
+- 🌐 **Auto-Open Resources** - Automatically opens relevant websites/apps when starting timers
+- 🔔 **Goal Completion Alerts** - Audio alerts when you reach daily goals
+- 📊 **Progress Visualization** - Real-time progress bars and statistics
+- 💾 **Data Persistence** - Your data is saved automatically and persists between sessions
+- 📜 **Session History** - View detailed logs of all your work sessions
 
 ### Productivity Features
-- 🎯 Daily goals with progress tracking
-- 📜 Session history with detailed logs
-- 💾 Automatic data persistence
-- 🔄 Timer recovery (tracks time even if app closes)
-- 🌐 Auto-launch relevant websites/apps when starting timers
+- ⌨️ **Keyboard-First Design** - All features accessible via keyboard shortcuts
+- 🖱️ **Mouse Support** - Click to select timers and control buttons
+- 🎨 **Modern Dark Theme** - Easy on the eyes for long sessions
+- 🔇 **Silent Mode** - Start timers without opening apps (press `Space`)
+- 🚀 **Quick Start** - Press `s` to start timer + open resources instantly
 
-## Installation
+## 📦 Installation
 
-### Quick Install (Run from Anywhere)
+### Windows
+
+#### Quick Install (Recommended)
 
 Run the installation script to add `jpred` to your system PATH:
 
@@ -46,141 +46,130 @@ Run the installation script to add `jpred` to your system PATH:
 ```
 
 This will:
-1. Copy JPred to `%USERPROFILE%\.jpred-app`
-2. Create a launcher in `%USERPROFILE%\.local\bin`
-3. Add the bin directory to your PATH
+1. Copy JPred to your user directory
+2. Create a system-wide launcher
+3. Add it to your PATH automatically
 
-After installation, you can run `jpred` from anywhere in your terminal.
+After installation, restart your terminal and run:
+```bash
+jpred
+```
 
-### Manual Installation
+#### Manual Installation
 
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+```bash
+# Clone or download the project
+cd jpred
 
-2. **Run the application**:
-   ```bash
-   npm start
-   ```
+# Install dependencies
+npm install
 
-### Add to PATH Manually
+# Run the application
+npm start
+```
 
-To run `jpred` from anywhere without the install script:
+### macOS / Linux
 
-1. Create a batch file at `%USERPROFILE%\.local\bin\jpred.bat`:
-   ```batch
-   @echo off
-   node "%USERPROFILE%\.jpred-app\src\app.js" %*
-   ```
+```bash
+# Install dependencies
+npm install
 
-2. Add to PATH:
-   ```bash
-   setx PATH "%PATH%;%USERPROFILE%\.local\bin"
-   ```
+# Run the application
+npm start
 
-3. Restart your terminal and run:
-   ```bash
-   jpred
-   ```
+# Optional: Create a global command
+ln -s $(pwd)/src/index.js /usr/local/bin/jpred
+```
 
-## Usage
+## 🚀 Usage
 
-### Starting/Stopping Timers
+### Starting Timers
 
-**Keyboard:**
+| Key | Action |
+|-----|--------|
+| `Space` | Start/Stop timer (silent - no apps opened) |
+| `s` | Start timer + Open associated resources |
+
+### Navigation
+
 | Key | Action |
 |-----|--------|
 | `1` | Select Job Search timer |
 | `2` | Select Practice timer |
 | `3` | Select Upskilling timer |
-| `Space` | Start/Stop timer (default - no apps opened) |
-| `s` | Start timer + Open associated resources |
 | `r` | Reset selected timer |
-| `g` | Set goal for selected timer |
+| `g` | Set daily goal |
 | `h` | Toggle history view |
 | `q` | Quit application |
 
-**Mouse:**
-- Click on a timer card to select it
-- Click on Start/Stop/Reset buttons to control timers
+### Auto-Open Resources
 
-### Silent Start Mode (Default)
-
-Press `Space` to start a timer **without** opening associated websites or applications. This is the default behavior - perfect for when you:
-- Already have the relevant tabs open
-- Want to track time without distractions
-- Are working offline
-
-### Opening Resources Mode
-
-Press `s` to start a timer **and** automatically open relevant resources:
-
-| Timer | Opens with 's' key |
-|-------|--------------------|
-| **Job Search** | Firefox → LinkedIn Jobs, Indeed, Glassdoor |
-| **Practice** | Firefox → LeetCode, HackerRank, CodeWars |
-| **Upskilling** | VS Code (new window) |
-
-### Auto-Open Workflow
-
-When you **start** a timer, JPred automatically opens relevant resources:
+When you press `s` to start a timer, JPred automatically opens:
 
 | Timer | Opens |
 |-------|-------|
-| **Job Search** (Space on timer 1) | Firefox → LinkedIn Jobs, Indeed, Glassdoor |
-| **Practice** (Space on timer 2) | Firefox → LeetCode, HackerRank, CodeWars |
-| **Upskilling** (Space on timer 3) | VS Code (new window) |
+| **Job Search** (1) | Firefox → LinkedIn Jobs, Indeed, Glassdoor |
+| **Practice** (2) | Firefox → LeetCode, HackerRank, CodeWars |
+| **Upskilling** (3) | VS Code (new window) |
 
 ### Setting Goals
 
-1. Select a timer using `1`, `2`, or `3`
-2. Press `g` to open the goal modal
-3. Enter the goal in minutes
-4. Press Enter to save, Esc to cancel
+1. Select a timer (`1`, `2`, or `3`)
+2. Press `g` to set a custom goal
+3. Enter minutes and press Enter
 
-### Goal Completion Alerts
+Default goal: 120 minutes (2 hours) per timer per day.
 
-When you reach 100% of your goal:
-1. 🎉 **Success sound** plays immediately
-2. 🔔 **Continuous beeping** starts (every 2 seconds)
-3. 📢 **Notification popup** appears
-4. ⏹ **Stop the timer** (press Space) to silence the alert
+### Goal Completion
 
-This ensures you know when you've achieved your daily goal!
+When you reach 100% of your daily goal:
+1. 🎉 Success sound plays
+2. 🔔 Continuous beeping starts (every 2 seconds)
+3. 📢 Notification popup appears
+4. ⏹ Press `Space` to stop the timer and silence the alert
 
-### Viewing History
-
-Press `h` to toggle the history view which shows:
-- **Today's Sessions**: All sessions logged today
-- **All Time Sessions**: Complete session history
-
-## Data Storage
+## 📊 Data Storage
 
 Your timer data is automatically saved to:
 - **Windows**: `C:\Users\<YourUsername>\.jpred\data.json`
 - **macOS/Linux**: `~/.jpred/data.json`
 
-The data includes:
+Data includes:
 - Total time per timer
 - Session history with timestamps
 - Custom goals
-- Running state (recovered on restart)
+- Running state (recovered if app closes unexpectedly)
 
-## Keyboard Shortcuts
+## 🖼️ Screenshots
 
-| Key | Action |
-|-----|--------|
-| `1` | Select Job Search timer |
-| `2` | Select Practice timer |
-| `3` | Select Upskilling timer |
-| `Space` | Toggle start/stop selected timer |
-| `r` | Reset selected timer |
-| `g` | Set goal for selected timer |
-| `h` | Toggle history view |
-| `q` or `Escape` | Quit application |
+### Main Interface
+```
+┌─────────────────────────────────────────────────────────────────┐
+│          💼  JPRED - Job Hunting Time Tracker  💼               │
+└─────────────────────────────────────────────────────────────────┘
 
-## Project Structure
+  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
+  │  💼 Job Search     │  │  📝 Practice       │  │  📚 Upskilling     │
+  │                    │  │                    │  │                    │
+  │      00:00         │  │      00:00         │  │      00:00         │
+  │                    │  │                    │  │                    │
+  │  [░░░░░░░░░░] 0%  │  │  [░░░░░░░░░░] 0%  │  │  [░░░░░░░░░░] 0%  │
+  │  ○ Stopped         │  │  ○ Stopped         │  │  ○ Stopped         │
+  │  Today: 00:00/120m │  │  Today: 00:00/120m │  │  Today: 00:00/120m │
+  └────────────────────┘  └────────────────────┘  └────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  📊 Today's Summary                                             │
+  │  ○ Job Search: 00:00/120m (0%)                                 │
+  │  ○ Practice: 00:00/120m (0%)                                   │
+  │  ○ Upskilling: 00:00/120m (0%)                                 │
+  │  ⏱ Total Today: 00:00                                          │
+  └─────────────────────────────────────────────────────────────────┘
+```
+
+## 🛠️ Development
+
+### Project Structure
 
 ```
 jpred/
@@ -188,55 +177,75 @@ jpred/
 │   ├── index.js          # Entry point
 │   ├── app.js            # Main TUI application
 │   ├── timerEngine.js    # Timer logic and persistence
-│   ├── soundManager.js   # Beep/alert sound system
+│   ├── soundManager.js   # Audio alerts system
 │   └── appLauncher.js    # Auto-open browsers/apps
 ├── tests/
 │   ├── test_timer_engine.js
-│   ├── stress_test.js
-│   └── test_sound_launcher.js
+│   └── stress_test.js
 ├── package.json
 ├── README.md
 ├── LICENSE
-└── run.bat
+├── install.bat           # Windows installer
+└── run.bat               # Quick run script
 ```
 
-## Productivity Loop
+### Running Tests
 
-JPred implements a **Code → Feedback → Code** loop:
+```bash
+# Run unit tests
+node tests/test_timer_engine.js
 
-1. **Start Timer** → Relevant resources auto-open
-2. **Work** → Time is tracked with visual progress
-3. **Goal Reached** → Audio alert celebrates achievement
-4. **Stop Timer** → Alert silenced, session saved
-5. **Review History** → See your progress over time
-6. **Repeat** → Build consistent habits
+# Run stress tests
+node tests/stress_test.js
+```
 
-## Troubleshooting
+### Building Executable (Optional)
 
-### Display Issues
-- Ensure your terminal supports UTF-8 characters
-- Try increasing terminal window size if layout appears broken
-- For Windows, use Windows Terminal for best experience
+```bash
+# Install pkg for building
+npm install --save-dev pkg
 
-### Sound Issues
-- Windows: Uses PowerShell `[Console]::Beep()` - requires terminal support
-- Fallback: Terminal bell character (may not work in all terminals)
+# Build Windows executable
+npm run build
+```
 
-### Auto-Open Issues
-- **Firefox not opening**: Ensure Firefox is installed and in PATH
-- **VS Code not opening**: Ensure `code` command is available (install via VS Code: Cmd+Shift+P → "Shell Command: Install 'code' command in PATH")
-- **Websites not loading**: Check your internet connection
+## 🤝 Contributing
 
-### Data Issues
-- Data is stored in `~/.jpred/data.json`
-- You can manually edit this file if needed (JSON format)
-- Delete the file to reset all data
-- Corrupted data is automatically backed up and recovered
+Contributions are welcome! Here's how you can help:
 
-## License
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-MIT License - See [LICENSE](LICENSE) file for details.
+### Areas for Contribution
+- Additional website integrations (AngelList, Wellfound, etc.)
+- Custom resource URLs configuration
+- Weekly/monthly reports
+- Export data to CSV/Excel
+- Additional themes
 
-## Contributing
+## 📝 License
 
-Contributions are welcome! Feel free to submit issues or pull requests.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [blessed](https://github.com/chjj/blessed) - A curses-like library for Node.js
+- Inspired by the need for focused, distraction-free job hunting tools
+
+## 📬 Support
+
+- **Issues**: [GitHub Issues](https://github.com/jpred/jpred/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/jpred/jpred/discussions)
+
+---
+
+<div align="center">
+
+**Happy Job Hunting! 🍀**
+
+Made with ❤️ for job seekers everywhere
+
+</div>
