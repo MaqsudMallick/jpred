@@ -9,365 +9,312 @@ const { TimerEngine, TimerType, TIMER_LABELS, TIMER_ICONS } = require('./timerEn
 const SoundManager = require('./soundManager.js');
 const { AppLauncher } = require('./appLauncher.js');
 
-// Create screen
+// ─── Screen ────────────────────────────────────────────────────────────────
 const screen = blessed.screen({
   smartCSR: true,
   title: 'JPred - Job Hunting Time Tracker',
-  fullUnicode: true
+  fullUnicode: true,
+  dockBorders: true,   // prevents double-drawn shared borders
+  ignoreLocked: ['C-c']
 });
 
-// Create timer engine
-const engine = new TimerEngine();
-
-// Create sound manager
+// ─── Services ──────────────────────────────────────────────────────────────
+const engine       = new TimerEngine();
 const soundManager = new SoundManager();
+const appLauncher  = new AppLauncher();
 
-// Create app launcher
-const appLauncher = new AppLauncher();
-
-// Track goal completion state
 const goalCompleted = {
   [TimerType.JOB_SEARCH]: false,
-  [TimerType.PRACTICE]: false,
+  [TimerType.PRACTICE]:   false,
   [TimerType.UPSKILLING]: false
 };
 
-// Format time helper
+// ─── Helpers ───────────────────────────────────────────────────────────────
 function formatTime(seconds) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  
-  if (hours > 0) {
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
-  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-// Format datetime helper
 function formatDateTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
+  return new Date(timestamp).toLocaleString('en-US', {
+    month:  '2-digit',
+    day:    '2-digit',
+    hour:   '2-digit',
     minute: '2-digit',
     hour12: false
   });
 }
 
-// Create main layout
+// ─── Root container ────────────────────────────────────────────────────────
+// No autoPadding – we manage all coordinates manually so nothing shifts.
 const mainBox = blessed.box({
-  top: 0,
-  left: 0,
-  width: '100%',
-  height: '100%',
-  autoPadding: true
+  top:    0,
+  left:   0,
+  width:  '100%',
+  height: '100%'
 });
-
 screen.append(mainBox);
 
-// Header
+// ─── Header (row 0, height 3) ──────────────────────────────────────────────
 const header = blessed.box({
-  top: 0,
-  left: 0,
-  width: '100%',
+  top:    0,
+  left:   0,
+  width:  '100%',
   height: 3,
-  content: '          💼  JPRED - Job Hunting Time Tracker  💼          ',
+  align:  'center',
+  valign: 'middle',
+  content: '💼  JPRED  —  Job Hunting Time Tracker  💼',
+  padding: { left: 1, right: 1 },
+  border:  { type: 'line' },
   style: {
-    bg: 'black',
-    fg: 'cyan'
-  },
-  border: {
-    type: 'line',
-    fg: 'cyan'
+    fg:     'cyan',
+    bold:   true,
+    border: { fg: 'cyan' }
   }
 });
 mainBox.append(header);
 
-// Timer cards container
-const timersBox = blessed.listbar({
-  top: 3,
-  left: 0,
-  width: '100%',
-  height: 14,
-  autoCommandKeys: false,
-  mouseKeys: [0, 1, 2],
-  style: {
-    prefix: { fg: 'cyan' },
-    selected: { fg: 'cyan', bg: 'blue', bold: true }
-  }
-});
+// ─── Timer cards (rows 3-13, height 10) ────────────────────────────────────
+// Lay out three timer cards side-by-side using percentage widths.
+// Each card is ~33 % wide with small gaps handled by left offsets.
 
-// Create individual timer boxes
-const timerBoxes = {};
+const CARD_TOP    = 3;   // directly below header border
+const CARD_HEIGHT = 10;
+
+const timerBoxes    = {};
 const timerDisplays = {};
-const timerStatus = {};
+const timerStatus   = {};
 const timerProgress = {};
-const timerToday = {};
-const timerTitles = {};
+const timerToday    = {};
+const timerTitles   = {};
 
 const timerConfigs = [
-  { type: TimerType.JOB_SEARCH, top: 4, left: 2, width: 30, height: 9, key: '1' },
-  { type: TimerType.PRACTICE, top: 4, left: 34, width: 30, height: 9, key: '2' },
-  { type: TimerType.UPSKILLING, top: 4, left: 66, width: 30, height: 9, key: '3' }
+  { type: TimerType.JOB_SEARCH, left: '0%',   width: '33%-1', key: '1' },
+  { type: TimerType.PRACTICE,   left: '33%',  width: '34%-1', key: '2' },
+  { type: TimerType.UPSKILLING, left: '67%',  width: '33%',   key: '3' }
 ];
 
-timerConfigs.forEach(config => {
-  const { type, top, left, width, height, key } = config;
-  
-  // Timer card box
+timerConfigs.forEach(({ type, left, width, key }) => {
+
+  // Card frame
   const box = blessed.box({
-    top: top,
-    left: left,
-    width: width,
-    height: height,
-    border: {
-      type: 'line',
-      fg: 'gray'
-    },
+    top:     CARD_TOP,
+    left:    left,
+    width:   width,
+    height:  CARD_HEIGHT,
+    padding: { top: 0, left: 1, right: 1, bottom: 0 },
+    border:  { type: 'line' },
     style: {
       border: { fg: 'gray' }
     }
   });
   mainBox.append(box);
   timerBoxes[type] = box;
-  
-  // Title
+
+  // ── Title row (inside padding area, row 0 of content) ──
   const title = blessed.text({
-    top: 0,
-    left: 2,
-    width: width - 4,
-    height: 1,
-    align: 'center',
-    content: `${TIMER_ICONS[type]} ${TIMER_LABELS[type]} [${key}]`,
-    style: {
-      bold: true,
-      fg: 'white'
-    }
+    top:     0,
+    left:    0,
+    width:   '100%',
+    height:  1,
+    align:   'center',
+    content: `${TIMER_ICONS[type]} ${TIMER_LABELS[type]}  [${key}]`,
+    style:   { bold: true, fg: 'white' }
   });
   box.append(title);
   timerTitles[type] = title;
 
-  // Time display
+  // ── Time display (row 2) ──
   const display = blessed.text({
-    top: 2,
-    left: 0,
-    width: width,
+    top:    2,
+    left:   0,
+    width:  '100%',
     height: 1,
-    align: 'center',
-    content: '00:00:00',
-    style: {
-      fg: 'cyan',
-      bold: true
-    }
+    align:  'center',
+    content: '00:00',
+    style:   { fg: 'cyan', bold: true }
   });
   box.append(display);
   timerDisplays[type] = display;
-  
-  // Progress bar (using text)
+
+  // ── Progress bar (row 4) ──
   const progress = blessed.text({
-    top: 4,
-    left: 2,
-    width: width - 4,
+    top:    4,
+    left:   0,
+    width:  '100%',
     height: 1,
-    align: 'center',
-    content: '[██████████░░░░░░░░░░] 50%',
-    style: {
-      fg: 'green'
-    }
+    align:  'center',
+    content: '[░░░░░░░░░░░░░░░░░░░░] 0%',
+    style:   { fg: 'red' }
   });
   box.append(progress);
   timerProgress[type] = progress;
-  
-  // Status
+
+  // ── Status (row 5) ──
   const status = blessed.text({
-    top: 5,
-    left: 0,
-    width: width,
+    top:    5,
+    left:   0,
+    width:  '100%',
     height: 1,
-    align: 'center',
+    align:  'center',
     content: '○ Stopped',
-    style: {
-      fg: 'gray'
-    }
+    style:   { fg: 'gray' }
   });
   box.append(status);
   timerStatus[type] = status;
-  
-  // Today's time
+
+  // ── Today (row 6) ──
   const today = blessed.text({
-    top: 6,
-    left: 0,
-    width: width,
+    top:    6,
+    left:   0,
+    width:  '100%',
     height: 1,
-    align: 'center',
-    content: 'Today: 00:00/120m',
-    style: {
-      fg: 'gray'
-    }
+    align:  'center',
+    content: 'Today: 00:00 / 120 m',
+    style:   { fg: 'gray' }
   });
   box.append(today);
   timerToday[type] = today;
-  
-  // Buttons row
-  const buttons = blessed.text({
-    top: 8,
-    left: 0,
-    width: width,
-    height: 1,
-    align: 'center',
-    content: '[▶] Start  [⏹] Stop  [↻] Reset  [g] Goal',
-    style: {
-      fg: 'white'
-    }
-  });
-  box.append(buttons);
 });
 
-// Stats panel
+// ─── Stats panel (row 13, height 6) ────────────────────────────────────────
+const STATS_TOP    = CARD_TOP + CARD_HEIGHT;   // 13
+const STATS_HEIGHT = 7;
+
 const statsBox = blessed.box({
-  top: 14,
-  left: 2,
-  width: '100%-4',
-  height: 5,
-  border: {
-    type: 'line',
-    fg: 'blue'
-  },
-  style: {
-    border: { fg: 'blue' }
-  }
+  top:    STATS_TOP,
+  left:   0,
+  width:  '100%',
+  height: STATS_HEIGHT,
+  border: { type: 'line' },
+  style:  { border: { fg: 'blue' } }
 });
 mainBox.append(statsBox);
 
 const statsTitle = blessed.text({
-  top: 0,
-  left: 2,
-  content: '📊 Today\'s Summary',
-  style: {
-    bold: true,
-    fg: 'blue'
-  }
+  top:     0,
+  left:    2,
+  content: '📊  Today\'s Summary',
+  style:   { bold: true, fg: 'blue' }
 });
 statsBox.append(statsTitle);
 
+// 4 content lines: 3 timers + total (top: 1..4)
 const statsContent = blessed.text({
-  top: 1,
-  left: 2,
-  width: '100%-4',
-  height: 4,
+  top:    1,
+  left:   2,
+  width:  '100%-4',
+  height: STATS_HEIGHT - 3,
+  tags:   true,
   content: ''
 });
 statsBox.append(statsContent);
 
-// History box (hidden by default)
+// ─── History panel (below stats, fills remaining space minus footer) ────────
+const HISTORY_TOP = STATS_TOP + STATS_HEIGHT;
+
 const historyBox = blessed.box({
-  top: 15,
-  left: 2,
-  width: '100%-4',
-  height: '100%-18',
-  border: {
-    type: 'line',
-    fg: 'cyan'
-  },
-  style: {
-    border: { fg: 'cyan' }
-  },
+  top:    HISTORY_TOP,
+  left:   0,
+  width:  '100%',
+  height: '100%-' + (HISTORY_TOP + 1),  // leave 1 row for footer
+  border: { type: 'line' },
+  style:  { border: { fg: 'cyan' } },
   hidden: true
 });
 mainBox.append(historyBox);
 
 const historyTitle = blessed.text({
-  top: 0,
-  left: 2,
-  content: '📜 Session History (Press h to close)',
-  style: {
-    bold: true,
-    fg: 'cyan'
-  }
+  top:     0,
+  left:    2,
+  content: '📜  Session History  (press h to close)',
+  style:   { bold: true, fg: 'cyan' }
 });
 historyBox.append(historyTitle);
 
 const historyContent = blessed.text({
-  top: 1,
-  left: 2,
-  width: '100%-4',
-  height: '100%-2',
-  content: '',
-  tags: true
+  top:    2,
+  left:   2,
+  width:  '100%-4',
+  height: '100%-3',
+  tags:   true,
+  content: ''
 });
 historyBox.append(historyContent);
 
-// Footer
+// ─── Footer (always at bottom row) ─────────────────────────────────────────
 const footer = blessed.text({
   bottom: 0,
-  left: 0,
-  width: '100%',
+  left:   0,
+  width:  '100%',
   height: 1,
-  align: 'center',
-  content: '[1][2][3] Select | [Space] Start | [s] +Resources | [r] Reset | [g] Goal | [h] History | [q] Quit',
+  align:  'center',
+  content: ' [1][2][3] Select  [Space] Start/Stop  [s] Start+Resources  [r] Reset  [g] Goal  [h] History  [q] Quit ',
   style: {
-    fg: 'cyan'
+    fg: 'black',
+    bg: 'cyan'
   }
 });
 mainBox.append(footer);
 
-// Selected timer
-let selectedTimer = TimerType.JOB_SEARCH;
-let showHistory = false;
+// ─── State ─────────────────────────────────────────────────────────────────
+let selectedTimer  = TimerType.JOB_SEARCH;
+let showHistory    = false;
 
-// Update progress bar visual
+// ─── Progress bar renderer ─────────────────────────────────────────────────
 function updateProgressBar(type) {
   const progress = engine.getProgress(type);
-  const percent = Math.min(Math.round(progress * 100), 100);
-  const filled = Math.min(Math.floor(progress * 20), 20);
-  const empty = 20 - filled;
+  const percent  = Math.min(Math.round(progress * 100), 100);
 
-  let barColor = 'green';
-  if (progress < 0.3) barColor = 'red';
-  else if (progress < 0.7) barColor = 'yellow';
+  // Scale bar to ~40% of the card inner width (card is ~33% of screen, minus borders/padding)
+  const cardInner = Math.max(20, Math.floor(screen.width * 0.33) - 6);
+  const barWidth  = Math.floor(cardInner * 0.5);
+  const filled    = Math.min(Math.floor(progress * barWidth), barWidth);
+  const empty     = barWidth - filled;
 
-  const bar = '█'.repeat(Math.max(0, filled)) + '░'.repeat(Math.max(0, empty));
-  timerProgress[type].setContent('[' + bar + '] ' + percent + '%');
+  let barColor = 'red';
+  if (progress >= 0.7) barColor = 'green';
+  else if (progress >= 0.3) barColor = 'yellow';
+
+  const bar = '█'.repeat(filled) + '░'.repeat(empty);
+  timerProgress[type].setContent(`[${bar}] ${percent}%`);
   timerProgress[type].style.fg = barColor;
 }
 
-// Update all displays
+// ─── Main display update ───────────────────────────────────────────────────
 function updateDisplays() {
   const keyMap = {
     [TimerType.JOB_SEARCH]: '1',
-    [TimerType.PRACTICE]: '2',
+    [TimerType.PRACTICE]:   '2',
     [TimerType.UPSKILLING]: '3'
   };
 
   Object.values(TimerType).forEach(type => {
-    const elapsed = engine.getElapsedTime(type);
+    const elapsed   = engine.getElapsedTime(type);
     const isRunning = engine.isRunning(type);
-    const today = engine.getTodayTotal(type);
-    const goal = engine.getGoal(type);
-    const key = keyMap[type];
-    const progress = engine.getProgress(type);
+    const today     = engine.getTodayTotal(type);
+    const goal      = engine.getGoal(type);
+    const key       = keyMap[type];
+    const progress  = engine.getProgress(type);
 
-    // Check for goal completion
+    // Goal completion
     if (progress >= 1.0 && isRunning && !goalCompleted[type]) {
       goalCompleted[type] = true;
       soundManager.playSuccessSound();
       soundManager.startGoalAlert(type);
-      
-      // Show notification
-      notify(`🎉 Goal completed for ${TIMER_LABELS[type]}!`);
+      notify(`🎉 Goal reached: ${TIMER_LABELS[type]}!`);
     }
 
-    // Update time display
+    // Time display
     timerDisplays[type].setContent(formatTime(elapsed));
-    if (isRunning) {
-      timerDisplays[type].style.fg = 'green';
-    } else {
-      timerDisplays[type].style.fg = 'cyan';
-    }
+    timerDisplays[type].style.fg = isRunning ? 'green' : 'cyan';
 
-    // Update status
+    // Status
     if (isRunning) {
       timerStatus[type].setContent('● Running');
       timerStatus[type].style.fg = 'green';
@@ -376,93 +323,80 @@ function updateDisplays() {
       timerStatus[type].style.fg = 'gray';
     }
 
-    // Update today's time
-    timerToday[type].setContent('Today: ' + formatTime(today) + '/' + goal + 'm');
+    // Today
+    timerToday[type].setContent(`Today: ${formatTime(today)} / ${goal}m`);
 
-    // Update progress bar
+    // Progress bar
     updateProgressBar(type);
 
-    // Update border for selected timer
+    // Border & title highlight for selected timer
     if (type === selectedTimer) {
       timerBoxes[type].style.border.fg = 'cyan';
-      timerTitles[type].setContent(TIMER_ICONS[type] + ' ' + TIMER_LABELS[type] + ' [SELECTED]');
-      timerTitles[type].style.fg = 'cyan';
+      timerTitles[type].setContent(`${TIMER_ICONS[type]} ${TIMER_LABELS[type]}  [SELECTED]`);
+      timerTitles[type].style.fg   = 'cyan';
       timerTitles[type].style.bold = true;
     } else {
       timerBoxes[type].style.border.fg = 'gray';
-      timerTitles[type].setContent(TIMER_ICONS[type] + ' ' + TIMER_LABELS[type] + ' [' + key + ']');
-      timerTitles[type].style.fg = 'white';
+      timerTitles[type].setContent(`${TIMER_ICONS[type]} ${TIMER_LABELS[type]}  [${key}]`);
+      timerTitles[type].style.fg   = 'white';
       timerTitles[type].style.bold = false;
     }
   });
 
-  // Update stats
   updateStats();
 
-  try {
-    screen.render();
-  } catch (renderError) {
-    console.error('Render error:', renderError);
-  }
+  try { screen.render(); } catch (e) { /* ignore render errors */ }
 }
 
-// Update stats panel
+// ─── Stats update ──────────────────────────────────────────────────────────
 function updateStats() {
-  let stats = '';
-  let total = 0;
+  let lines = [];
+  let total  = 0;
 
   Object.values(TimerType).forEach(type => {
-    const today = engine.getTodayTotal(type);
-    const goal = engine.getGoal(type);
+    const today    = engine.getTodayTotal(type);
+    const goal     = engine.getGoal(type);
     const progress = engine.getProgress(type);
-    const percent = Math.min(Math.round(progress * 100), 100);
+    const percent  = Math.min(Math.round(progress * 100), 100);
     total += today;
 
-    const icon = progress >= 1 ? '✓' : '○';
-    const color = progress >= 1 ? 'green' : 'white';
-
-    stats += icon + ' ' + TIMER_LABELS[type] + ': ' + formatTime(today) + '/' + goal + 'm (' + percent + '%)    ';
+    const icon  = progress >= 1 ? '{green-fg}✓{/}' : '○';
+    lines.push(`${icon} {bold}${TIMER_LABELS[type]}{/bold}: ${formatTime(today)} / ${goal}m  (${percent}%)`);
   });
 
-  stats += '\n\n⏱ Total Today: ' + formatTime(total);
-  statsContent.setContent(stats);
-  statsContent.style.fg = 'cyan';
+  lines.push(`{blue-fg}⏱  Total Today: ${formatTime(total)}{/}`);
+  statsContent.setContent(lines.join('\n'));
 }
 
-// Notification box
-let notificationBox = null;
+// ─── Notification ──────────────────────────────────────────────────────────
+let notificationBox     = null;
 let notificationTimeout = null;
 
 function notify(message) {
-  // Remove existing notification
-  if (notificationBox) {
-    mainBox.remove(notificationBox);
-  }
-  if (notificationTimeout) {
-    clearTimeout(notificationTimeout);
-  }
+  if (notificationBox)    { mainBox.remove(notificationBox); }
+  if (notificationTimeout){ clearTimeout(notificationTimeout); }
 
-  // Create notification
   notificationBox = blessed.box({
-    top: 'center',
-    left: 'center',
-    width: message.length + 4,
-    height: 3,
+    top:     'center',
+    left:    'center',
+    width:   message.length + 6,
+    height:  3,
+    align:   'center',
+    valign:  'middle',
     content: message,
+    padding: { left: 2, right: 2 },
+    border:  { type: 'line' },
     style: {
-      bg: 'green',
-      fg: 'white'
-    },
-    border: {
-      type: 'line',
-      fg: 'green'
+      bg:     'green',
+      fg:     'white',
+      bold:   true,
+      border: { fg: 'white' }
     }
   });
 
   mainBox.append(notificationBox);
   screen.render();
 
-  // Auto-remove after 3 seconds
   notificationTimeout = setTimeout(() => {
     if (notificationBox) {
       mainBox.remove(notificationBox);
@@ -472,116 +406,98 @@ function notify(message) {
   }, 3000);
 }
 
-// Update history view
+// ─── History ───────────────────────────────────────────────────────────────
 function updateHistory() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStart = today.getTime();
-
-  const allSessions = engine.getAllSessions();
-  const todaySessions = [];
-  const allList = [];
+  const todayStart   = new Date().setHours(0, 0, 0, 0);
+  const allSessions  = engine.getAllSessions();
+  const todayList    = [];
+  const allList      = [];
 
   Object.values(TimerType).forEach(type => {
     (allSessions[type] || []).forEach(s => {
       const entry = { type, ...s };
       allList.push(entry);
-      if (s.startTime >= todayStart) {
-        todaySessions.push(entry);
-      }
+      if (s.startTime >= todayStart) todayList.push(entry);
     });
   });
 
-  todaySessions.sort((a, b) => b.startTime - a.startTime);
+  todayList.sort((a, b) => b.startTime - a.startTime);
   allList.sort((a, b) => b.startTime - a.startTime);
 
-  let content = "Today's Sessions (" + todaySessions.length + ")\n";
-  content += '='.repeat(40) + '\n\n';
+  const row = s =>
+    `  ${formatDateTime(s.startTime)}  ${formatTime(s.duration)}  ${TIMER_LABELS[s.type]}`;
 
-  if (todaySessions.length === 0) {
-    content += 'No sessions today. Start a timer!\n\n';
-  } else {
-    todaySessions.slice(0, 8).forEach(s => {
-      content += formatDateTime(s.startTime) + '  ';
-      content += formatTime(s.duration) + '  ';
-      content += TIMER_LABELS[s.type] + '\n';
-    });
-  }
+  let content = `Today's Sessions (${todayList.length})\n${'─'.repeat(44)}\n`;
+  content += todayList.length === 0
+    ? '  No sessions today. Start a timer!\n'
+    : todayList.slice(0, 8).map(row).join('\n') + '\n';
 
-  content += '\nAll Time Sessions (' + allList.length + ')\n';
-  content += '='.repeat(40) + '\n\n';
-
-  if (allList.length === 0) {
-    content += 'No sessions recorded yet.\n';
-  } else {
-    allList.slice(0, 8).forEach(s => {
-      content += formatDateTime(s.startTime) + '  ';
-      content += formatTime(s.duration) + '  ';
-      content += TIMER_LABELS[s.type] + '\n';
-    });
-  }
+  content += `\nAll-Time Sessions (${allList.length})\n${'─'.repeat(44)}\n`;
+  content += allList.length === 0
+    ? '  No sessions recorded yet.\n'
+    : allList.slice(0, 10).map(row).join('\n') + '\n';
 
   historyContent.setContent(content);
 }
 
-// Goal input modal
-let goalInput = '';
+// ─── Goal modal ────────────────────────────────────────────────────────────
+let goalInput       = '';
 let showingGoalModal = false;
 
 function showGoalModal() {
   showingGoalModal = true;
   goalInput = '';
-  
+
   const modal = blessed.box({
-    top: 'center',
-    left: 'center',
-    width: 50,
-    height: 8,
-    border: {
-      type: 'line',
-      fg: 'blue'
-    },
+    top:    'center',
+    left:   'center',
+    width:  52,
+    height: 9,
+    padding: { top: 1, left: 2, right: 2, bottom: 1 },
+    border:  { type: 'line' },
     style: {
-      bg: 'black',
+      bg:     'black',
       border: { fg: 'blue' }
     }
   });
-  
+
   const title = blessed.text({
-    top: 0,
-    left: 2,
+    top:     0,
+    left:    0,
+    width:   '100%',
+    align:   'center',
     content: `Set Goal for ${TIMER_LABELS[selectedTimer]}`,
-    style: { bold: true, fg: 'blue' }
+    style:   { bold: true, fg: 'blue' }
   });
   modal.append(title);
-  
+
   const label = blessed.text({
-    top: 2,
-    left: 2,
+    top:     2,
+    left:    0,
     content: 'Enter minutes:',
-    style: { fg: 'white' }
+    style:   { fg: 'white' }
   });
   modal.append(label);
-  
+
   const inputDisplay = blessed.text({
-    top: 3,
-    left: 2,
+    top:     3,
+    left:    0,
     content: '> _',
-    style: { fg: 'cyan', bold: true }
+    style:   { fg: 'cyan', bold: true }
   });
   modal.append(inputDisplay);
-  
+
   const hint = blessed.text({
-    top: 5,
-    left: 2,
-    content: 'Enter to save, Esc to cancel',
-    style: { fg: 'gray' }
+    top:     5,
+    left:    0,
+    content: 'Enter to save  ·  Esc to cancel',
+    style:   { fg: 'gray' }
   });
   modal.append(hint);
-  
+
   mainBox.append(modal);
   screen.render();
-  
+
   function handleGoalInput(ch, key) {
     if (key.name === 'escape') {
       mainBox.remove(modal);
@@ -589,176 +505,101 @@ function showGoalModal() {
       screen.render();
       return;
     }
-    
     if (key.name === 'enter') {
       const value = parseInt(goalInput, 10);
-      if (value > 0) {
-        engine.setGoal(selectedTimer, value);
-        updateDisplays();
-      }
+      if (value > 0) { engine.setGoal(selectedTimer, value); updateDisplays(); }
       mainBox.remove(modal);
       showingGoalModal = false;
       screen.render();
       return;
     }
-    
     if (key.name === 'backspace') {
       goalInput = goalInput.slice(0, -1);
     } else if (ch >= '0' && ch <= '9') {
       goalInput += ch;
     }
-    
     inputDisplay.setContent(`> ${goalInput}_`);
     screen.render();
   }
-  
-  screen.onceKey(['escape', 'enter', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'backspace'], handleGoalInput);
+
+  screen.onceKey(
+    ['escape','enter','0','1','2','3','4','5','6','7','8','9','backspace'],
+    handleGoalInput
+  );
 }
 
-// Handle keyboard input
-screen.key(['escape', 'q', '1', '2', '3', 'space', 's', 'r', 'g', 'h', '?'], function(ch, key) {
+// ─── Keyboard ──────────────────────────────────────────────────────────────
+screen.key(['escape','q','1','2','3','space','s','r','g','h','?'], (ch, key) => {
   if (showingGoalModal) return;
 
   if (key.name === 'q' || key.name === 'escape') {
-    // Stop all beeping
     soundManager.stopAllAlerts();
-    
-    // Save and exit
-    Object.values(TimerType).forEach(type => {
-      if (engine.isRunning(type)) {
-        engine.stopTimer(type);
-      }
-    });
+    Object.values(TimerType).forEach(t => { if (engine.isRunning(t)) engine.stopTimer(t); });
     return process.exit(0);
   }
 
   if (ch === 'h' || key.name === 'h') {
     showHistory = !showHistory;
     historyBox.hidden = !showHistory;
-    if (showHistory) {
-      updateHistory();
-    }
+    if (showHistory) updateHistory();
     screen.render();
     return;
   }
 
-  if (ch === 'g' || key.name === 'g') {
-    showGoalModal();
-    return;
-  }
+  if (ch === 'g' || key.name === 'g') { showGoalModal(); return; }
 
   if (key.name === 'space' || ch === ' ') {
     if (engine.isRunning(selectedTimer)) {
       engine.stopTimer(selectedTimer);
-      // Stop beeping for this timer
       soundManager.stopGoalAlert(selectedTimer);
       goalCompleted[selectedTimer] = false;
     } else {
-      // Default: Start timer WITHOUT opening apps/websites
       engine.startTimer(selectedTimer);
       goalCompleted[selectedTimer] = false;
-      notify(`Started ${TIMER_LABELS[selectedTimer]}`);
+      notify(`▶  ${TIMER_LABELS[selectedTimer]}  started`);
     }
     updateDisplays();
     return;
   }
 
-  // 's' key - Start timer AND open associated resources
   if (ch === 's' || key.name === 's') {
     if (!engine.isRunning(selectedTimer)) {
       engine.startTimer(selectedTimer);
-      // Open associated app/website
       appLauncher.openForTimer(selectedTimer);
       appLauncher.markOpened(selectedTimer);
       goalCompleted[selectedTimer] = false;
-      notify(`Started ${TIMER_LABELS[selectedTimer]} + resources`);
+      notify(`▶  ${TIMER_LABELS[selectedTimer]}  started  +  resources`);
       updateDisplays();
     }
     return;
   }
 
-  if (ch === 'r' || key.name === 'r') {
-    engine.resetTimer(selectedTimer);
-    updateDisplays();
-    return;
-  }
+  if (ch === 'r' || key.name === 'r') { engine.resetTimer(selectedTimer); updateDisplays(); return; }
 
-  if (ch === '1' || key.name === '1') {
-    selectedTimer = TimerType.JOB_SEARCH;
-    updateDisplays();
-    return;
-  }
-
-  if (ch === '2' || key.name === '2') {
-    selectedTimer = TimerType.PRACTICE;
-    updateDisplays();
-    return;
-  }
-
-  if (ch === '3' || key.name === '3') {
-    selectedTimer = TimerType.UPSKILLING;
-    updateDisplays();
-    return;
-  }
+  if (ch === '1') { selectedTimer = TimerType.JOB_SEARCH; updateDisplays(); return; }
+  if (ch === '2') { selectedTimer = TimerType.PRACTICE;   updateDisplays(); return; }
+  if (ch === '3') { selectedTimer = TimerType.UPSKILLING; updateDisplays(); return; }
 });
 
-// Mouse support
-screen.on('mouse', function(data) {
+// ─── Mouse ─────────────────────────────────────────────────────────────────
+screen.on('mouse', data => {
   if (showingGoalModal) return;
-  
-  // Check clicks on timer boxes
   Object.values(TimerType).forEach(type => {
     const box = timerBoxes[type];
     const pos = box.getPosition();
-    
     if (data.x >= pos.left && data.x < pos.left + pos.width &&
-        data.y >= pos.top && data.y < pos.top + pos.height) {
+        data.y >= pos.top  && data.y < pos.top  + pos.height) {
       selectedTimer = type;
-      
-      // Check button clicks (approximate positions)
-      const relativeX = data.x - pos.left;
-      const buttonRow = pos.top + 8;
-      
-      if (data.y === buttonRow) {
-        if (relativeX >= 1 && relativeX <= 8) {
-          // Start button
-          engine.startTimer(type);
-        } else if (relativeX >= 11 && relativeX <= 20) {
-          // Stop button
-          engine.stopTimer(type);
-        } else if (relativeX >= 23 && relativeX <= 32) {
-          // Reset button
-          engine.resetTimer(type);
-        }
-      }
-      
       updateDisplays();
     }
   });
 });
 
-// Auto-update every second
+// ─── Main loop ─────────────────────────────────────────────────────────────
 setInterval(() => {
-  try {
-    updateDisplays();
-  } catch (error) {
-    console.error('Update error:', error);
-  }
+  try { updateDisplays(); } catch (e) { /* ignore */ }
 }, 1000);
 
-// Initial render
-try {
-  updateDisplays();
-  screen.render();
-} catch (error) {
-  console.error('Initial render error:', error);
-}
+try { updateDisplays(); screen.render(); } catch (e) { /* ignore */ }
 
-// Handle window resize
-screen.on('resize', () => {
-  try {
-    screen.render();
-  } catch (error) {
-    console.error('Resize render error:', error);
-  }
-});
+screen.on('resize', () => { try { screen.render(); } catch (e) { /* ignore */ } });
