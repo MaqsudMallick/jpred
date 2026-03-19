@@ -247,6 +247,36 @@ const historyContent = blessed.text({
 });
 historyBox.append(historyContent);
 
+// ─── Resources panel (below stats, same slot as history) ───────────────────
+const resourcesBox = blessed.box({
+  top:    HISTORY_TOP,
+  left:   0,
+  width:  '100%',
+  height: '100%-' + (HISTORY_TOP + 1),
+  border: { type: 'line' },
+  style:  { border: { fg: 'yellow' } },
+  hidden: true
+});
+mainBox.append(resourcesBox);
+
+const resourcesTitle = blessed.text({
+  top:     0,
+  left:    2,
+  content: '📋  Resources',
+  style:   { bold: true, fg: 'yellow' }
+});
+resourcesBox.append(resourcesTitle);
+
+const resourcesContent = blessed.text({
+  top:    2,
+  left:   2,
+  width:  '100%-4',
+  height: '100%-4',
+  tags:   true,
+  content: ''
+});
+resourcesBox.append(resourcesContent);
+
 // ─── Footer (always at bottom row) ─────────────────────────────────────────
 const footer = blessed.text({
   bottom: 0,
@@ -254,7 +284,7 @@ const footer = blessed.text({
   width:  '100%',
   height: 1,
   align:  'center',
-  content: ' [1][2][3] Select  [Space] Start/Stop  [s] Start+Resources  [r] Reset  [g] Goal  [h] History  [q] Quit ',
+  content: ' [1][2][3] Select  [Space] Start/Stop  [s] Start+Resources  [r] Reset  [g] Goal  [h] History  [e] Resources  [q] Quit ',
   style: {
     fg: 'black',
     bg: 'cyan'
@@ -263,8 +293,11 @@ const footer = blessed.text({
 mainBox.append(footer);
 
 // ─── State ─────────────────────────────────────────────────────────────────
-let selectedTimer  = TimerType.JOB_SEARCH;
-let showHistory    = false;
+let selectedTimer        = TimerType.JOB_SEARCH;
+let showHistory          = false;
+let showResources        = false;
+let selectedResourceIdx  = 0;
+let showingResourceModal = false;
 
 // ─── Progress bar renderer ─────────────────────────────────────────────────
 function updateProgressBar(type) {
@@ -528,22 +561,180 @@ function showGoalModal() {
   );
 }
 
-// ─── Keyboard ──────────────────────────────────────────────────────────────
-screen.key(['escape','q','1','2','3','space','s','r','g','h','?'], (ch, key) => {
-  if (showingGoalModal) return;
+// ─── Resources page ────────────────────────────────────────────────────────
+const FOOTER_MAIN      = ' [1][2][3] Select  [Space] Start/Stop  [s] Start+Resources  [r] Reset  [g] Goal  [h] History  [e] Resources  [q] Quit ';
+const FOOTER_RESOURCES = ' [1][2][3] Switch  [↑↓] Navigate  [a] Add  [d] Delete  [e/Esc] Close ';
 
-  if (key.name === 'q' || key.name === 'escape') {
-    soundManager.stopAllAlerts();
-    Object.values(TimerType).forEach(t => { if (engine.isRunning(t)) engine.stopTimer(t); });
-    return process.exit(0);
+function buildResourcesContent() {
+  const resources = appLauncher.getResources(selectedTimer);
+  const label     = TIMER_LABELS[selectedTimer];
+  const icon      = TIMER_ICONS[selectedTimer];
+
+  resourcesTitle.setContent(`📋  Resources — ${icon} ${label}`);
+
+  if (resources.length === 0) {
+    resourcesContent.setContent('  No resources configured.\n\n  Press {bold}a{/bold} to add a URL or command (e.g. https://example.com  or  code -n).');
+    return;
   }
 
+  const lines = resources.map((res, i) => {
+    if (i === selectedResourceIdx) {
+      return `  {yellow-fg}▶ {bold}${res}{/bold}{/yellow-fg}`;
+    }
+    return `    ${res}`;
+  });
+  resourcesContent.setContent(lines.join('\n'));
+}
+
+function toggleResources() {
+  showResources = !showResources;
+  resourcesBox.hidden = !showResources;
+  if (showResources) {
+    if (showHistory) { showHistory = false; historyBox.hidden = true; }
+    selectedResourceIdx = 0;
+    buildResourcesContent();
+    footer.setContent(FOOTER_RESOURCES);
+  } else {
+    footer.setContent(FOOTER_MAIN);
+  }
+  screen.render();
+}
+
+function showAddResourceModal() {
+  showingResourceModal = true;
+  let input = '';
+
+  const modal = blessed.box({
+    top:    'center',
+    left:   'center',
+    width:  64,
+    height: 9,
+    padding: { top: 1, left: 2, right: 2, bottom: 1 },
+    border:  { type: 'line' },
+    style:   { bg: 'black', border: { fg: 'yellow' } }
+  });
+
+  const title = blessed.text({
+    top: 0, left: 0, width: '100%', align: 'center',
+    content: `Add Resource — ${TIMER_LABELS[selectedTimer]}`,
+    style: { bold: true, fg: 'yellow' }
+  });
+  modal.append(title);
+
+  const label = blessed.text({
+    top: 2, left: 0,
+    content: 'Enter URL or command:',
+    style: { fg: 'white' }
+  });
+  modal.append(label);
+
+  const inputDisplay = blessed.text({
+    top: 3, left: 0, width: '100%',
+    content: '> _',
+    style: { fg: 'cyan', bold: true }
+  });
+  modal.append(inputDisplay);
+
+  const hint = blessed.text({
+    top: 5, left: 0,
+    content: 'Enter to save  ·  Esc to cancel',
+    style: { fg: 'gray' }
+  });
+  modal.append(hint);
+
+  mainBox.append(modal);
+  screen.render();
+
+  function handler(ch, key) {
+    if (key.name === 'escape') {
+      screen.removeListener('keypress', handler);
+      mainBox.remove(modal);
+      showingResourceModal = false;
+      screen.render();
+      return;
+    }
+    if (key.name === 'enter') {
+      screen.removeListener('keypress', handler);
+      mainBox.remove(modal);
+      showingResourceModal = false;
+      if (input.trim()) {
+        appLauncher.addResource(selectedTimer, input.trim());
+        const updated = appLauncher.getResources(selectedTimer);
+        selectedResourceIdx = updated.length - 1;
+        buildResourcesContent();
+        notify(`Added resource`);
+      }
+      screen.render();
+      return;
+    }
+    if (key.name === 'backspace') {
+      input = input.slice(0, -1);
+    } else if (ch && ch.length === 1) {
+      input += ch;
+    }
+    inputDisplay.setContent(`> ${input}_`);
+    screen.render();
+  }
+
+  screen.on('keypress', handler);
+}
+
+// ─── Keyboard ──────────────────────────────────────────────────────────────
+screen.key(['escape','q','1','2','3','space','s','r','g','h','e','up','down','a','d','?'], (ch, key) => {
+  if (showingGoalModal || showingResourceModal) return;
+
+  // e — toggle resources page
+  if (ch === 'e' || key.name === 'e') { toggleResources(); return; }
+
+  // h — toggle history (closes resources if open)
   if (ch === 'h' || key.name === 'h') {
+    if (showResources) { showResources = false; resourcesBox.hidden = true; footer.setContent(FOOTER_MAIN); }
     showHistory = !showHistory;
     historyBox.hidden = !showHistory;
     if (showHistory) updateHistory();
     screen.render();
     return;
+  }
+
+  // ── Resources-page keys ─────────────────────────────────────────────────
+  if (showResources) {
+    if (key.name === 'escape') { toggleResources(); return; }
+
+    if (key.name === 'up') {
+      const r = appLauncher.getResources(selectedTimer);
+      if (r.length > 0) { selectedResourceIdx = (selectedResourceIdx - 1 + r.length) % r.length; buildResourcesContent(); screen.render(); }
+      return;
+    }
+    if (key.name === 'down') {
+      const r = appLauncher.getResources(selectedTimer);
+      if (r.length > 0) { selectedResourceIdx = (selectedResourceIdx + 1) % r.length; buildResourcesContent(); screen.render(); }
+      return;
+    }
+    if (ch === 'a') { showAddResourceModal(); return; }
+    if (ch === 'd') {
+      const r = appLauncher.getResources(selectedTimer);
+      if (r.length > 0) {
+        appLauncher.removeResource(selectedTimer, selectedResourceIdx);
+        const updated = appLauncher.getResources(selectedTimer);
+        selectedResourceIdx = Math.min(selectedResourceIdx, Math.max(0, updated.length - 1));
+        buildResourcesContent();
+        notify('Resource removed');
+        screen.render();
+      }
+      return;
+    }
+    // 1/2/3 switch which timer's resources are shown
+    if (ch === '1') { selectedTimer = TimerType.JOB_SEARCH; selectedResourceIdx = 0; buildResourcesContent(); updateDisplays(); return; }
+    if (ch === '2') { selectedTimer = TimerType.PRACTICE;   selectedResourceIdx = 0; buildResourcesContent(); updateDisplays(); return; }
+    if (ch === '3') { selectedTimer = TimerType.UPSKILLING; selectedResourceIdx = 0; buildResourcesContent(); updateDisplays(); return; }
+    return; // block other keys while resources page is open
+  }
+
+  // ── Main-screen keys ────────────────────────────────────────────────────
+  if (key.name === 'q' || key.name === 'escape') {
+    soundManager.stopAllAlerts();
+    Object.values(TimerType).forEach(t => { if (engine.isRunning(t)) engine.stopTimer(t); });
+    return process.exit(0);
   }
 
   if (ch === 'g' || key.name === 'g') { showGoalModal(); return; }
@@ -583,7 +774,7 @@ screen.key(['escape','q','1','2','3','space','s','r','g','h','?'], (ch, key) => 
 
 // ─── Mouse ─────────────────────────────────────────────────────────────────
 screen.on('mouse', data => {
-  if (showingGoalModal) return;
+  if (showingGoalModal || showingResourceModal || showResources) return;
   Object.values(TimerType).forEach(type => {
     const box = timerBoxes[type];
     const pos = box.getPosition();

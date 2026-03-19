@@ -4,77 +4,86 @@
  */
 const { exec } = require('child_process');
 const path = require('path');
+const os = require('os');
+const fs = require('fs');
 
-// URLs and apps for each timer type
-const TIMER_APPS = {
-  job_search: {
-    name: 'Job Search',
-    urls: [
-      'https://www.linkedin.com/jobs',
-      'https://www.indeed.com',
-      'https://www.glassdoor.com'
-    ],
-    browser: 'firefox'
-  },
-  practice: {
-    name: 'Practice',
-    urls: [
-      'https://leetcode.com',
-      'https://www.hackerrank.com',
-      'https://www.codewars.com'
-    ],
-    browser: 'firefox'
-  },
-  upskilling: {
-    name: 'Upskilling',
-    app: 'code',
-    args: ['-n'] // New window
-  }
+const RESOURCES_FILE = path.join(os.homedir(), '.jpred', 'resources.json');
+
+// Default resources used on first run (no saved file)
+const DEFAULT_RESOURCES = {
+  job_search: [
+    'https://www.linkedin.com/jobs',
+    'https://www.indeed.com',
+    'https://www.glassdoor.com'
+  ],
+  practice: [
+    'https://leetcode.com',
+    'https://www.hackerrank.com',
+    'https://www.codewars.com'
+  ],
+  upskilling: [
+    'code -n'
+  ]
 };
 
 class AppLauncher {
   constructor() {
     this.openedApps = new Map();
+    this.resources = this._loadResources();
+  }
+
+  _loadResources() {
+    try {
+      if (fs.existsSync(RESOURCES_FILE)) {
+        return JSON.parse(fs.readFileSync(RESOURCES_FILE, 'utf8'));
+      }
+    } catch (e) { /* ignore */ }
+    return JSON.parse(JSON.stringify(DEFAULT_RESOURCES));
+  }
+
+  _saveResources() {
+    try {
+      const dir = path.dirname(RESOURCES_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(RESOURCES_FILE, JSON.stringify(this.resources, null, 2));
+    } catch (e) { /* ignore */ }
+  }
+
+  getResources(timerType) {
+    return (this.resources[timerType] || []).slice();
+  }
+
+  addResource(timerType, value) {
+    if (!this.resources[timerType]) this.resources[timerType] = [];
+    this.resources[timerType].push(value.trim());
+    this._saveResources();
+  }
+
+  removeResource(timerType, index) {
+    if (!this.resources[timerType] || index < 0 || index >= this.resources[timerType].length) return;
+    this.resources[timerType].splice(index, 1);
+    this._saveResources();
   }
 
   /**
    * Open apps/URLs for a timer type
    */
   openForTimer(timerType) {
-    const config = TIMER_APPS[timerType];
-    if (!config) {
-      console.log('No app configured for timer type:', timerType);
-      return false;
-    }
+    const resources = this.getResources(timerType);
+    if (resources.length === 0) return false;
 
-    console.log(`Opening ${config.name} resources...`);
-
-    if (config.urls) {
-      // Open URLs in browser
-      return this.openUrls(config.urls, config.browser);
-    } else if (config.app) {
-      // Open application
-      return this.openApp(config.app, config.args);
-    }
-
-    return false;
-  }
-
-  /**
-   * Open URLs in specified browser
-   */
-  openUrls(urls, browser = 'firefox') {
-    const results = [];
-
-    urls.forEach((url, index) => {
-      // Stagger opening to avoid browser blocking
-      setTimeout(() => {
-        this.openUrl(url, browser);
-      }, index * 500);
-      results.push(true);
+    let opened = false;
+    resources.forEach((resource, index) => {
+      if (resource.startsWith('http')) {
+        setTimeout(() => { this.openUrl(resource, 'firefox'); }, index * 500);
+        opened = true;
+      } else {
+        const parts = resource.trim().split(/\s+/);
+        this.openApp(parts[0], parts.slice(1));
+        opened = true;
+      }
     });
-
-    return results.length > 0;
+    return opened;
   }
 
   /**
@@ -82,11 +91,9 @@ class AppLauncher {
    */
   openUrl(url, browser = 'firefox') {
     if (process.platform === 'win32') {
-      // Windows: use start command or firefox directly
       if (browser === 'firefox') {
         exec(`start firefox "${url}"`, (err) => {
           if (err) {
-            // Fallback: use default browser
             exec(`start "" "${url}"`, (err2) => {
               if (err2) console.error('Failed to open URL:', url);
             });
@@ -98,18 +105,14 @@ class AppLauncher {
         });
       }
     } else if (process.platform === 'darwin') {
-      // macOS
       exec(`open -a "${browser}" "${url}"`, (err) => {
         if (err) exec(`open "${url}"`);
       });
     } else {
-      // Linux
       exec(`${browser} "${url}" &`, (err) => {
         if (err) exec(`xdg-open "${url}"`);
       });
     }
-
-    console.log('Opened:', url);
     return true;
   }
 
@@ -118,20 +121,15 @@ class AppLauncher {
    */
   openApp(app, args = []) {
     const argsStr = args.join(' ');
-    
     if (process.platform === 'win32') {
       exec(`start ${app} ${argsStr}`, (err) => {
-        if (err) {
-          console.error(`Failed to open ${app}:`, err);
-        }
+        if (err) console.error(`Failed to open ${app}:`, err);
       });
     } else {
       exec(`${app} ${argsStr} &`, (err) => {
         if (err) console.error(`Failed to open ${app}:`, err);
       });
     }
-
-    console.log(`Opened ${app} ${argsStr}`);
     return true;
   }
 
@@ -157,4 +155,4 @@ class AppLauncher {
   }
 }
 
-module.exports = { AppLauncher, TIMER_APPS };
+module.exports = { AppLauncher, TIMER_APPS: DEFAULT_RESOURCES };
