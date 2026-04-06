@@ -533,12 +533,14 @@ function showGoalModal() {
 
   function handleGoalInput(ch, key) {
     if (key.name === 'escape') {
+      screen.removeListener('keypress', handleGoalInput);
       mainBox.remove(modal);
       showingGoalModal = false;
       screen.render();
       return;
     }
     if (key.name === 'enter') {
+      screen.removeListener('keypress', handleGoalInput);
       const value = parseInt(goalInput, 10);
       if (value > 0) { engine.setGoal(selectedTimer, value); updateDisplays(); }
       mainBox.remove(modal);
@@ -555,10 +557,7 @@ function showGoalModal() {
     screen.render();
   }
 
-  screen.onceKey(
-    ['escape','enter','0','1','2','3','4','5','6','7','8','9','backspace'],
-    handleGoalInput
-  );
+  screen.on('keypress', handleGoalInput);
 }
 
 // ─── Resources page ────────────────────────────────────────────────────────
